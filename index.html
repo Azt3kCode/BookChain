@@ -4,36 +4,57 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Book Chain</title>
-    <link rel="icon" href="src/logo.jpg" type="image/png"/>
+    <link rel="icon" href="src/logotipo.png" type="image/png"/>
     <link rel="stylesheet" href="styles.css"/>
     <script src="https://cdn.jsdelivr.net/npm/web3@1.8.1/dist/web3.min.js"></script>
 </head>
 <body>
+    <div id="loadingOverlay" style="
+  display: none;
+  position: fixed;
+  top: 0; left: 0;
+  width: 100vw; height: 100vh;
+  background-color: rgba(0, 0, 0, 0.9);
+  z-index: 9999;
+  justify-content: center;
+  align-items: center;
+">
+  <img class="imagen-carga" src="src/logotipo.png" width="500" alt="Cargando..." style="width: 150px; height: auto;">
+</div>
+
     <section class="banner">
-        <img src="src/logotipo.jpg" alt="Logo">
+        <img src="src/logotipo.png" alt="Logo">
     </section>
 
     <div class="container">
         <section class="metaMaskConnection">
             <button id="connectButton">Conectar a MetaMask</button>
-            <div id="status">No estás conectado a MetaMask</div>
+            <span id="status">No estás conectado a MetaMask</span>
         </section>
+                <!-- Botones solo visibles para admins -->
+                <div id="adminControls" style="display: none;">
+                    <button class="button" id="addBookButton">Agregar un libro</button>
+                    <section id="bookForm" class="bookForm" style="display: none; margin-top: 20px;">
+                        <input type="text" id="bookTitle" placeholder="Título del libro">
+                        <input type="text" id="bookAuthor" placeholder="Autor">
+                        <input type="text" id="bookISBN" placeholder="Edición">
+                        <input type="text" id="bookDescription" placeholder="Descripción">
+                        <input type="text" id="bookImageUrl" placeholder="URL de la imagen">
+                        <button id="submitBookButton" class="formButton">Subir libro</button>
+                    </section>
+                    <section id="editBookForm" class="bookForm" style="display: none; margin-top: 20px;">
+                        <input type="text" id="editBookTitle" placeholder="Nuevo título">
+                        <input type="text" id="editBookAuthor" placeholder="Nuevo autor">
+                        <input type="text" id="editBookISBN" placeholder="Nueva edición">
+                        <input type="text" id="editBookDescription" placeholder="Nueva descripción">
+                        <input type="text" id="editBookImageUrl" placeholder="Nueva URL de imagen">
+                        <button id="submitEditButton" class="formButton">Guardar cambios</button>
+                    </section>
+                    
+                </div>
 
         <section class="booksList" id="bookList"></section>
 
-        <!-- Botones solo visibles para admins -->
-        <div id="adminControls" style="display: none;">
-            <button class="button" id="addBookButton">Agregar un libro</button>
-            <section id="bookForm" style="display: none; margin-top: 20px;">
-                <input type="text" id="bookTitle" placeholder="Título del libro">
-                <input type="text" id="bookAuthor" placeholder="Autor">
-                <input type="text" id="bookISBN" placeholder="ISBN">
-                <input type="text" id="bookDescription" placeholder="Descripción">
-                <input type="text" id="bookImageUrl" placeholder="URL de la imagen">
-                <button id="submitBookButton">Subir libro</button>
-            </section>
-            
-        </div>
     </div>
 
     <script src="app.js"></script>

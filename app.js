@@ -80,6 +80,10 @@ const connectButton = document.getElementById('connectButton');
 const statusDiv = document.getElementById('status');
 const addBookButton = document.getElementById('addBookButton');
 const adminControls = document.getElementById('adminControls');
+const editBookForm = document.getElementById('editBookForm');
+const submitEditButton = document.getElementById('submitEditButton');
+let editingIndex = null;
+
 
 let currentAccount = null;
 let isAdmin = false;
@@ -90,7 +94,7 @@ async function init() {
         try {
             const accounts = await ethereum.request({ method: 'eth_requestAccounts' });
             currentAccount = accounts[0];
-            statusDiv.innerText = `Conectado: ${currentAccount}`;
+            statusDiv.innerText = `${currentAccount}`;
 
             contract = new web3.eth.Contract(abi, contractAddress);
 
@@ -104,7 +108,7 @@ async function init() {
 
             loadBooks();
 
-            connectButton.style.display = 'none'; // Ocultar botón de conexión una vez conectado
+            connectButton.style.display = 'none';
         } catch (error) {
             console.error("Error al conectar con MetaMask", error);
         }
@@ -115,6 +119,7 @@ async function init() {
 
 async function loadBooks() {
     try {
+        showLoading();
         const books = await contract.methods.getBooks().call();
         const bookList = document.getElementById('bookList');
         bookList.innerHTML = '';
@@ -127,7 +132,7 @@ async function loadBooks() {
                     <img class="book__img" src="${book.imageUrl}" alt="${book.title}">
                     <div class="book__info">
                         <span class="book__title">${book.title}</span>
-                        <p class="book__author">${book.author} <span class="book__edition">9</span></p>
+                        <p class="book__author">${book.author} <span class="book__edition">${book.isbn}</span></p>
                         <p class="book__description">${book.description}</p>
                         ${isAdmin ? `
                             <button class="modifyButton" onclick="modifyBook(${index})">Modificar</button>
@@ -140,6 +145,8 @@ async function loadBooks() {
         });
     } catch (error) {
         console.error("Error al cargar los libros", error);
+    } finally {
+        hideLoading();
     }
 }
 
@@ -148,14 +155,12 @@ connectButton.addEventListener('click', init);
 const bookForm = document.getElementById('bookForm');
 const submitBookButton = document.getElementById('submitBookButton');
 
-// Mostrar formulario al hacer clic en "Agregar un libro"
 addBookButton.addEventListener('click', () => {
     if (!isAdmin) return;
     addBookButton.style.display = 'none';
     bookForm.style.display = 'block';
 });
 
-// Subir libro al hacer clic en "Subir libro"
 submitBookButton.addEventListener('click', async () => {
     const title = document.getElementById('bookTitle').value;
     const author = document.getElementById('bookAuthor').value;
@@ -169,13 +174,13 @@ submitBookButton.addEventListener('click', async () => {
     }
 
     try {
+        showLoading();
         await contract.methods.addBook(title, author, isbn, description, imageUrl).send({ from: currentAccount });
         alert("Libro agregado con éxito.");
         loadBooks();
 
-        // Reset y ocultar el formulario
         bookForm.style.display = 'none';
-        addBookButton.style.display = 'inline-block';
+        addBookButton.style.display = 'block';
         document.getElementById('bookTitle').value = '';
         document.getElementById('bookAuthor').value = '';
         document.getElementById('bookISBN').value = '';
@@ -183,27 +188,55 @@ submitBookButton.addEventListener('click', async () => {
         document.getElementById('bookImageUrl').value = '';
     } catch (error) {
         console.error("Error al agregar libro", error);
+    } finally {
+        hideLoading();
     }
 });
+
+submitEditButton.addEventListener('click', async () => {
+    const title = document.getElementById('editBookTitle').value;
+    const author = document.getElementById('editBookAuthor').value;
+    const isbn = document.getElementById('editBookISBN').value;
+    const description = document.getElementById('editBookDescription').value;
+    const imageUrl = document.getElementById('editBookImageUrl').value;
+
+    if (!title || !author || !isbn || !description || !imageUrl) {
+        alert("Por favor completa todos los campos.");
+        return;
+    }
+
+    try {
+        showLoading();
+        await contract.methods.modifyBook(editingIndex, title, author, isbn, description, imageUrl).send({ from: currentAccount });
+        alert("Libro modificado con éxito.");
+        loadBooks();
+        editBookForm.style.display = 'none';
+        editingIndex = null;
+    } catch (error) {
+        console.error("Error al modificar libro", error);
+    } finally {
+        hideLoading();
+    }
+});
+
 
 
 window.modifyBook = async (index) => {
     if (!isAdmin) return;
 
-    const title = prompt('Nuevo título:');
-    const author = prompt('Nuevo autor:');
-    const isbn = prompt('Nuevo ISBN:');
-    const description = prompt('Nueva descripción:');
-    const imageUrl = prompt('Nueva imagen URL:');
+    editingIndex = index;
+    const books = await contract.methods.getBooks().call();
+    const book = books[index];
 
-    try {
-        await contract.methods.modifyBook(index, title, author, isbn, description, imageUrl).send({ from: currentAccount });
-        alert("Libro modificado con éxito.");
-        loadBooks();
-    } catch (error) {
-        console.error("Error al modificar libro", error);
-    }
+    document.getElementById('editBookTitle').value = book.title;
+    document.getElementById('editBookAuthor').value = book.author;
+    document.getElementById('editBookISBN').value = book.isbn;
+    document.getElementById('editBookDescription').value = book.description;
+    document.getElementById('editBookImageUrl').value = book.imageUrl;
+
+    editBookForm.style.display = 'block';
 };
+
 
 window.removeBook = async (index) => {
     if (!isAdmin) return;
@@ -211,10 +244,21 @@ window.removeBook = async (index) => {
     if (!confirm("¿Estás seguro de eliminar este libro?")) return;
 
     try {
+        showLoading();
         await contract.methods.removeBook(index).send({ from: currentAccount });
         alert("Libro eliminado.");
         loadBooks();
     } catch (error) {
         console.error("Error al eliminar libro", error);
+    } finally {
+        hideLoading();
     }
 };
+
+function showLoading() {
+    document.getElementById('loadingOverlay').style.display = 'flex';
+}
+
+function hideLoading() {
+    document.getElementById('loadingOverlay').style.display = 'none';
+}
