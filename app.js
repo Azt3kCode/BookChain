@@ -76,20 +76,40 @@ const abi = [
     }
 ];
 
+const connectButton = document.getElementById('connectButton');
+const statusDiv = document.getElementById('status');
+const addBookButton = document.getElementById('addBookButton');
+const adminControls = document.getElementById('adminControls');
+
+let currentAccount = null;
+let isAdmin = false;
+
 async function init() {
     if (window.ethereum) {
-        web3 = new Web3(window.ethereum);  // Asegúrate de que Web3 esté cargado
+        web3 = new Web3(window.ethereum);
         try {
-            await window.ethereum.request({ method: 'eth_requestAccounts' });
+            const accounts = await ethereum.request({ method: 'eth_requestAccounts' });
+            currentAccount = accounts[0];
+            statusDiv.innerText = `Conectado: ${currentAccount}`;
+
             contract = new web3.eth.Contract(abi, contractAddress);
-            document.getElementById('connectButton').innerText = 'Conectado a MetaMask';
+
+            // Validar si es admin
+            isAdmin = await contract.methods.admins(currentAccount).call();
+            if (isAdmin) {
+                adminControls.style.display = 'block';
+            } else {
+                adminControls.style.display = 'none';
+            }
+
             loadBooks();
-            checkAdmin();
+
+            connectButton.style.display = 'none'; // Ocultar botón de conexión una vez conectado
         } catch (error) {
             console.error("Error al conectar con MetaMask", error);
         }
     } else {
-        alert("MetaMask no está instalado. Por favor, instálalo.");
+        alert("MetaMask no está instalado.");
     }
 }
 
@@ -97,108 +117,104 @@ async function loadBooks() {
     try {
         const books = await contract.methods.getBooks().call();
         const bookList = document.getElementById('bookList');
-        bookList.innerHTML = ''; // Limpiar lista antes de cargar
+        bookList.innerHTML = '';
+
         books.forEach((book, index) => {
-            const listItem = document.createElement('article');
-            listItem.classList.add('booksList__book');
-            listItem.innerHTML = `
+            const article = document.createElement('article');
+            article.classList.add('booksList__book');
+            article.innerHTML = `
                 <div class="book__container">
                     <img class="book__img" src="${book.imageUrl}" alt="${book.title}">
                     <div class="book__info">
                         <span class="book__title">${book.title}</span>
-                        <p class="book__author">${book.author}</p>
+                        <p class="book__author">${book.author} <span class="book__edition">9</span></p>
                         <p class="book__description">${book.description}</p>
-                        <button class="modifyButton" onclick="modifyBook(${index})">Modificar</button>
-                        <button class="removeButton" onclick="removeBook(${index})">Eliminar</button>
+                        ${isAdmin ? `
+                            <button class="modifyButton" onclick="modifyBook(${index})">Modificar</button>
+                            <button class="removeButton" onclick="removeBook(${index})">Eliminar</button>
+                        ` : ''}
                     </div>
                 </div>
             `;
-            bookList.appendChild(listItem);
+            bookList.appendChild(article);
         });
     } catch (error) {
         console.error("Error al cargar los libros", error);
     }
 }
 
-async function checkAdmin() {
-    const accounts = await web3.eth.getAccounts();
-    const account = accounts[0];
-    
-    if (account) {
-        try {
-            const isAdmin = await contract.methods.admins(account).call();
-            if (!isAdmin) {
-                document.getElementById('addBookButton').disabled = true;
-                alert('No tienes permisos de administrador para agregar libros.');
-            } else {
-                document.getElementById('addBookButton').disabled = false;
-            }
-        } catch (error) {
-            console.error("Error al verificar el administrador", error);
-        }
-    } else {
-        alert('Por favor, conéctate a MetaMask.');
+connectButton.addEventListener('click', init);
+
+const bookForm = document.getElementById('bookForm');
+const submitBookButton = document.getElementById('submitBookButton');
+
+// Mostrar formulario al hacer clic en "Agregar un libro"
+addBookButton.addEventListener('click', () => {
+    if (!isAdmin) return;
+    addBookButton.style.display = 'none';
+    bookForm.style.display = 'block';
+});
+
+// Subir libro al hacer clic en "Subir libro"
+submitBookButton.addEventListener('click', async () => {
+    const title = document.getElementById('bookTitle').value;
+    const author = document.getElementById('bookAuthor').value;
+    const isbn = document.getElementById('bookISBN').value;
+    const description = document.getElementById('bookDescription').value;
+    const imageUrl = document.getElementById('bookImageUrl').value;
+
+    if (!title || !author || !isbn || !description || !imageUrl) {
+        alert("Por favor completa todos los campos.");
+        return;
     }
-}
-
-async function addBook() {
-    const title = prompt('Ingrese el título del libro:');
-    const author = prompt('Ingrese el autor del libro:');
-    const isbn = prompt('Ingrese el ISBN del libro:');
-    const description = prompt('Ingrese una descripción del libro:');
-    const imageUrl = prompt('Ingrese la URL de la imagen del libro:');
-
-    const accounts = await web3.eth.getAccounts();
-    const account = accounts[0];
 
     try {
-        await contract.methods.addBook(title, author, isbn, description, imageUrl)
-            .send({ from: account });
+        await contract.methods.addBook(title, author, isbn, description, imageUrl).send({ from: currentAccount });
         alert("Libro agregado con éxito.");
-        loadBooks(); // Recargar la lista de libros
+        loadBooks();
+
+        // Reset y ocultar el formulario
+        bookForm.style.display = 'none';
+        addBookButton.style.display = 'inline-block';
+        document.getElementById('bookTitle').value = '';
+        document.getElementById('bookAuthor').value = '';
+        document.getElementById('bookISBN').value = '';
+        document.getElementById('bookDescription').value = '';
+        document.getElementById('bookImageUrl').value = '';
     } catch (error) {
-        console.error("Error al agregar el libro", error);
-        alert("Hubo un error al agregar el libro.");
+        console.error("Error al agregar libro", error);
     }
-}
+});
 
-async function modifyBook(index) {
-    const title = prompt('Ingrese el nuevo título del libro:');
-    const author = prompt('Ingrese el nuevo autor del libro:');
-    const isbn = prompt('Ingrese el nuevo ISBN del libro:');
-    const description = prompt('Ingrese una nueva descripción del libro:');
-    const imageUrl = prompt('Ingrese la nueva URL de la imagen del libro:');
 
-    const accounts = await web3.eth.getAccounts();
-    const account = accounts[0];
+window.modifyBook = async (index) => {
+    if (!isAdmin) return;
+
+    const title = prompt('Nuevo título:');
+    const author = prompt('Nuevo autor:');
+    const isbn = prompt('Nuevo ISBN:');
+    const description = prompt('Nueva descripción:');
+    const imageUrl = prompt('Nueva imagen URL:');
 
     try {
-        await contract.methods.modifyBook(index, title, author, isbn, description, imageUrl)
-            .send({ from: account });
+        await contract.methods.modifyBook(index, title, author, isbn, description, imageUrl).send({ from: currentAccount });
         alert("Libro modificado con éxito.");
-        loadBooks(); // Recargar la lista de libros
+        loadBooks();
     } catch (error) {
-        console.error("Error al modificar el libro", error);
-        alert("Hubo un error al modificar el libro.");
+        console.error("Error al modificar libro", error);
     }
-}
+};
 
-async function removeBook(index) {
-    const accounts = await web3.eth.getAccounts();
-    const account = accounts[0];
+window.removeBook = async (index) => {
+    if (!isAdmin) return;
+
+    if (!confirm("¿Estás seguro de eliminar este libro?")) return;
 
     try {
-        await contract.methods.removeBook(index).send({ from: account });
-        alert("Libro eliminado con éxito.");
-        loadBooks(); // Recargar la lista de libros
+        await contract.methods.removeBook(index).send({ from: currentAccount });
+        alert("Libro eliminado.");
+        loadBooks();
     } catch (error) {
-        console.error("Error al eliminar el libro", error);
-        alert("Hubo un error al eliminar el libro.");
+        console.error("Error al eliminar libro", error);
     }
-}
-
-// Conectar MetaMask cuando el usuario haga clic
-document.getElementById('connectButton').addEventListener('click', init);
-
-// Agregar libro
-document.getElementById('addBookButton').addEventListener('click', addBook);
+};
